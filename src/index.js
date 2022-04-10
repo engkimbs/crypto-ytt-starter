@@ -5,7 +5,7 @@ const config = {
   rpcURL: 'https://api.baobab.klaytn.net:8651'
 }
 const cav = new Caver(config.rpcURL);
-//const yttContract = new cav.klay.Contract(DEPLOYED_ABI, DEPLOYED_ADDRESS);
+const yttContract = new cav.klay.Contract(DEPLOYED_ABI, DEPLOYED_ADDRESS);
 
 const App = {
   auth: {
@@ -18,6 +18,7 @@ const App = {
   
   start: async function () {
     const walletFromSession = sessionStorage.getItem('walletInstance');
+    console.log('loaded')
     if (walletFromSession) {
       try {
         cav.klay.accounts.wallet.add(JSON.parse(walletFromSession));
@@ -34,7 +35,7 @@ const App = {
     fileReader.onload = (event) => {
       try {
         if (!this.checkValidKeystore(event.target.result)) {
-          $('#message').text('유효하지 않은 keystore 파일입니다.');
+          $('#message').text('유효하지 않은 keystore 파일입니다. 1');
           return;
         }
         this.auth.keystore = event.target.result;
@@ -54,10 +55,14 @@ const App = {
   handleLogin: async function () {
     if (this.auth.accessType === 'keystore') {
       try {
-        const privateKey = cav.klay.accounts.decrypt(this.auth.keystore, this.auth.password).privateKey;
-        this.integrateWallet(privateKey);
+        console.log(this.auth)
+        console.log(this.auth.keystore)
+        const keyring = cav.wallet.keyring.decrypt(this.auth.keystore, this.auth.password);
+        console.log(keyring)
+        this.integrateWallet(keyring.key.privateKey);
       } catch (e) {
         $('#message').text('비밀번호가 일치하지 않습니다.');
+        console.log(e)
       }
     }
   },
@@ -78,7 +83,7 @@ const App = {
     const isValidKeystore = parsedKeystore.version &&
       parsedKeystore.id &&
       parsedKeystore.address &&
-      parsedKeystore.crypto;
+      parsedKeystore.keyring;
 
     return isValidKeystore;
   },
@@ -101,6 +106,7 @@ const App = {
     $('#loginModal').modal('hide');
     $("#login").hide();
     $('#logout').show();
+    $('.afterLogin').show();
     // ...
     $('#address').append('<br>' + '<p>' + '내 계정 주소: ' + walletInstance.address + '</p>');  
     // ...   
@@ -118,10 +124,17 @@ const App = {
     var target = document.getElementById('spin');
     return new Spinner(opts).spin(target);
   },
-  //#endregion
 
-  checkTokenExists: async function () {   
-   
+  checkTokenExists: async function () {
+    let videoId = $('#video-id').val();
+    let result = await this.isTokenAlreadyCreated(videoId);
+
+    if(result) {
+      $('#t-message').text('이미 토큰화된 썸네일입니다.');
+    } else {
+      $('#t-message').text('토큰화 가능한 썸네일입니다.');
+      $('.btn-create').prop("disabled", false);
+    }
   },
 
   createToken: async function () {   
@@ -177,7 +190,7 @@ const App = {
   },     
 
   isTokenAlreadyCreated: async function (videoId) {
-   
+    return await yttContract.methods.isTokenAlreadyCreated(videoId).call();
   },
 
   getERC721MetadataSchema: function (videoId, title, imgUrl) {
@@ -232,6 +245,7 @@ const App = {
 window.App = App;
 
 window.addEventListener("load", function () {
+  alert("It's loaded");
   App.start(); 
   $("#tabs").tabs().css({'overflow': 'auto'});
 });
