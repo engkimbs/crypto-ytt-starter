@@ -137,9 +137,25 @@ const App = {
     }
   },
 
-  createToken: async function () {   
-    
-  },  
+  createToken: async function () {
+    let spinner = this.showSpinner();
+    let videoId = $('#video-id').val();
+    let title = $('#title').val();
+    let author = $('#author').val();
+    let dateCreated = $('#date-created').val();
+
+    if(!videoId || !title || !author || !dateCreated) {
+      spinner.stop();
+      return;
+    }
+
+    try {
+      const metaData = this.getERC721MetadataSchema(videoId, title, `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`)
+    } catch (e) {
+      console.error(e);
+      spinner.stop();
+    }
+  },
 
   mintYTT: async function (videoId, author, dateCreated, hash) {    
     
@@ -194,7 +210,24 @@ const App = {
   },
 
   getERC721MetadataSchema: function (videoId, title, imgUrl) {
-    
+    return {
+      "title": "Asset Metadata",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": videoId
+        },
+        "description": {
+          "type": "string",
+          "description": title
+        },
+        "image": {
+          "type": "string",
+          "description": imgUrl
+        }
+      }
+    }
   },
 
   getBalanceOf: async function (address) {
