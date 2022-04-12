@@ -7,6 +7,10 @@ const config = {
 const cav = new Caver(config.rpcURL);
 const yttContract = new cav.klay.Contract(DEPLOYED_ABI, DEPLOYED_ADDRESS);
 
+const ipfsClient = require('ipfs-http-client');
+const ipfs = ipfsClient.create({host: 'ipfs.infura.io', post: '5001', protocol: 'https'});
+
+
 const App = {
   auth: {
     accessType: 'keystore',
@@ -150,7 +154,12 @@ const App = {
     }
 
     try {
-      const metaData = this.getERC721MetadataSchema(videoId, title, `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`)
+      const metaData = this.getERC721MetadataSchema(
+          videoId,
+          title,
+          `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`)
+      let res = await ipfs.add(Buffer.from(JSON.stringify(metaData)))
+      alert(res[0].hash);
     } catch (e) {
       console.error(e);
       spinner.stop();
@@ -278,7 +287,6 @@ const App = {
 window.App = App;
 
 window.addEventListener("load", function () {
-  alert("It's loaded");
   App.start(); 
   $("#tabs").tabs().css({'overflow': 'auto'});
 });
