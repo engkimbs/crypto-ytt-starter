@@ -5,10 +5,12 @@ const config = {
   rpcURL: 'https://api.baobab.klaytn.net:8651'
 }
 const cav = new Caver(config.rpcURL);
+
 const yttContract = new cav.klay.Contract(DEPLOYED_ABI, DEPLOYED_ADDRESS);
+cav.ipfs.setIPFSNode('infura-ipfs.io', 5001, true);
 
 const ipfsClient = require('ipfs-http-client');
-const ipfs = ipfsClient.create({host: 'ipfs.infura.io', post: '5001', protocol: 'https'});
+const ipfs = ipfsClient.create({url: "https://ipfs.infura.io:5001/api/v0"});
 
 
 const App = {
@@ -158,8 +160,12 @@ const App = {
           videoId,
           title,
           `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`)
-      let res = await ipfs.add(Buffer.from(JSON.stringify(metaData)))
-      alert(res[0].hash);
+      // let res = await .ipfs.add(Buffer.from(JSON.stringify(metaData)))
+      //let res = await cav.ipfs.add(Buffer.from(JSON.stringify(metaData)))
+      let res = await ipfs.add(Buffer.from(JSON.stringify(metaData)));
+      console.log(res)
+      alert(res.path);
+      spinner.stop();
     } catch (e) {
       console.error(e);
       spinner.stop();
