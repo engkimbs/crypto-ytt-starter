@@ -24,7 +24,6 @@ const App = {
 
     start: async function () {
         const walletFromSession = sessionStorage.getItem('walletInstance');
-        console.log('loaded')
         if (walletFromSession) {
             try {
                 caver.klay.accounts.wallet.add(JSON.parse(walletFromSession));
@@ -86,12 +85,10 @@ const App = {
 
     checkValidKeystore: function (keystore) {
         const parsedKeystore = JSON.parse(keystore);
-        const isValidKeystore = parsedKeystore.version &&
+        return parsedKeystore.version &&
             parsedKeystore.id &&
             parsedKeystore.address &&
             parsedKeystore.keyring;
-
-        return isValidKeystore;
     },
 
     integrateWallet: function (privateKey) {
@@ -115,6 +112,8 @@ const App = {
         $('.afterLogin').show();
         // ...
         $('#address').append('<br>' + '<p>' + '내 계정 주소: ' + walletInstance.address + '</p>');
+
+        await this.displayMyTokensAndSale(walletInstance);
         // ...
         // ...
         // ...
@@ -185,24 +184,31 @@ const App = {
         caver.klay.sendTransaction({
             senderRawTransaction: senderRawTransaction,
             feePayer: feePayer.address,
-        })
-            .then(function (receipt) {
+        }).then(function (receipt) {
                 if(receipt.transactionHash) {
                     console.log("https://ipfs.infura.io/ipfs/" + hash);
                     alert(receipt.transactionHash);
-                    location.reload();1
+                    location.reload();
                 }
             });
     },
 
     displayMyTokensAndSale: async function (walletInstance) {
-        let balance = parseInt(await this.getBalanceOf(walletInstance.address));
+        let balanceFromWallet = await this.getBalanceOf(walletInstance.address)
+        let balance = parseInt(balanceFromWallet);
+
         if(balance === 0) {
             $('#myToktens').text("현재 보유한 토큰이 없습니다.");
         } else {
             for(let i = 0; i < balance; ++i) {
-                let tokenId = await this.getTokenOfOwnerByIndex(walletInstance.address, i);
-
+                (async () => {
+                    let tokenId = await this.getTokenOfOwnerByIndex(walletInstance.address, i);
+                    let tokenUri = await this.getTokenUri(tokenId);
+                    let ytt = await this.getYTT(tokenId);
+                    let metadata = await this.getMetadata(tokenUri);
+                    console.log(metadata)
+                    this.renderMyTokens(tokenId, ytt, metadata);
+                })();
             }
         }
     },
@@ -212,7 +218,17 @@ const App = {
     },
 
     renderMyTokens: function (tokenId, ytt, metadata) {
+        var tokens = $('#myTokens');
+        var template = $('#MyTokensTemplate');
+        template.find('.panel-heading').text(tokenId);
+        template.find('img').attr('src', metadata.properties.image.description);
+        template.find('img').attr('title', metadata.properties.description.description);
+        template.find('.video-id').text(metadata.properties.name.description);
+        template.find('.author').text(ytt[0]);
+        template.find('.date-created').text(ytt[1]);
 
+        console.log(template.html())
+        tokens.append(template.html());
     },
 
     renderMyTokensSale: function (tokenId, ytt, metadata, price) {
@@ -273,7 +289,7 @@ const App = {
     },
 
     getBalanceOf: async function (address) {
-        return await yttContract.methods.balanceOf(address);
+        return await yttContract.methods.balanceOf(address).call();
     },
 
     getTokenOfOwnerByIndex: async function (address, index) {
@@ -281,15 +297,19 @@ const App = {
     },
 
     getTokenUri: async function (tokenId) {
-
+        return await yttContract.methods.tokenURI(tokenId).call();
     },
 
     getYTT: async function (tokenId) {
-
+        return await yttContract.methods.getYTT(tokenId).call()
     },
 
     getMetadata: function (tokenUri) {
-
+        return new Promise((resolve) => {
+            $.getJSON(tokenUri, data => {
+                resolve(data);
+            })
+        })
     },
 
     getTotalSupply: async function () {
