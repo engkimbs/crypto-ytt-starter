@@ -1,0 +1,4 @@
+truffle-config.js
+.vscode
+build
+node_modules
