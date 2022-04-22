@@ -302,12 +302,14 @@ const App = {
     cancelApproval: async function () {
         this.showSpinner();
         const walletInstance = this.getWallet();
+
         const receipt = await yttContract.methods.setApprovalForAll(DEPLOYED_ADDRESS_TOKENSALES, false).send({
             from: walletInstance.address,
             gas: "2500000",
         });
 
         if(receipt.transactionHash) {
+            await this.onCancelApprovalSuccess(walletInstance);
             location.reload();
         }
     },
@@ -396,7 +398,27 @@ const App = {
     },
 
     onCancelApprovalSuccess: async function (walletInstance) {
+        let balance = parseInt(await this.getBalanceOf(walletInstance.address));
+        let tokensOnSale = [];
+        if( balance > 0 ) {
+            for(let i=0; i< balance; ++i) {
+                let tokenId = await this.getTokenOfOwnerByIndex(walletInstance.address, i);
+                let price = await this.getTokenPrice(tokenId);
+                if(parseInt(price) > 0)
+                    tokensOnSale.push(tokenId);
+            }
+        }
 
+        if(tokensOnSale.length > 0) {
+            const receipt = await tsContract.methods.removeTokenOnSale(tokensOnSale).send({
+                from: walletInstance.address,
+                gas: '250000',
+            });
+
+            if(receipt.transactionHash) {
+                alert(receipt.transactionHash);
+            }
+        }
     },
 
     isTokenAlreadyCreated: async function (videoId) {
