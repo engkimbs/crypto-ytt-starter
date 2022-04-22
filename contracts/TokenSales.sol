@@ -28,4 +28,14 @@ contract TokenSales {
         nftAddress.safeTransferFrom(tokenSeller, msg.sender, _tokenId);
         tokenPrice[_tokenId] = 0;
     }
+
+    function removeTokenOnSale(uint256[] memory tokenIds) public {
+        require(tokenIds.length > 0, "tokenIds is empty");
+        for(uint i=0; i < tokenIds.length; ++i) {
+            uint256 tokenId = tokenIds[i];
+            address tokenSeller = nftAddress.ownerOf(tokenId);
+            require(msg.sender == tokenSeller, "caller is not token seller");
+            tokenPrice[tokenId] = 0;
+        }
+    }
 }

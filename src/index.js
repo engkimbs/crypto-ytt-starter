@@ -124,7 +124,7 @@ const App = {
     },
 
     showSpinner: function () {
-        var target = document.getElementById('spin');
+        let target = document.getElementById('spin');
         return new Spinner(opts).spin(target);
     },
 
@@ -193,18 +193,20 @@ const App = {
 
     displayMyTokensAndSale: async function (walletInstance) {
         let balanceFromWallet = await this.getBalanceOf(walletInstance.address)
+        console.log(balanceFromWallet)
         let balance = parseInt(balanceFromWallet);
-
+        console.log(balance)
         if(balance === 0) {
             $('#myToktens').text("현재 보유한 토큰이 없습니다.");
         } else {
+            let isApproved = await this.isApprovedForAll(walletInstance.address, DEPLOYED_ADDRESS_TOKENSALES);
             for(let i = 0; i < balance; ++i) {
                 (async () => {
                     let tokenId = await this.getTokenOfOwnerByIndex(walletInstance.address, i);
                     let tokenUri = await this.getTokenUri(tokenId);
                     let ytt = await this.getYTT(tokenId);
                     let metadata = await this.getMetadata(tokenUri);
-                    this.renderMyTokens(tokenId, ytt, metadata);
+                    this.renderMyTokens(tokenId, ytt, metadata, isApproved);
                 })();
             }
         }
@@ -212,7 +214,7 @@ const App = {
 
     displayAllTokens: async function (walletInstance) {
         let totalSupply = parseInt(await this.getTotalSupply());
-
+        console.log(walletInstance)
         if(totalSupply === 0 ) {
             $('#allTokens').text("현재 발행된 토큰이 없습니다.");
         } else {
@@ -228,9 +230,9 @@ const App = {
         }
     },
 
-    renderMyTokens: function (tokenId, ytt, metadata) {
-        var tokens = $('#myTokens');
-        var template = $('#MyTokensTemplate');
+    renderMyTokens: function (tokenId, ytt, metadata, isApproved) {
+        let tokens = $('#myTokens');
+        let template = $('#MyTokensTemplate');
         template.find('.panel-heading').text(tokenId);
         template.find('img').attr('src', metadata.properties.image.description);
         template.find('img').attr('title', metadata.properties.description.description);
@@ -238,6 +240,9 @@ const App = {
         template.find('.author').text(ytt[0]);
         template.find('.date-created').text(ytt[1]);
 
+        if(isApproved) {
+            template.find('.sell-token').show()
+        }
         tokens.append(template.html());
     },
 
@@ -259,7 +264,16 @@ const App = {
     },
 
     approve: function () {
-
+        this.showSpinner();
+        const walletInstance = this.getWallet();
+        yttContract.methods.setApprovalForAll(DEPLOYED_ADDRESS_TOKENSALES, true).send({
+            from: walletInstance.address,
+            gas: "2500000",
+        }).then((receipt) => {
+            if(receipt.transactionHash) {
+                location.reload();
+            }
+        });
     },
 
     cancelApproval: async function () {
@@ -340,7 +354,7 @@ const App = {
     },
 
     isApprovedForAll: async function (owner, operator) {
-
+        return await yttContract.methods.isApprovedForAll(owner, operator).call();
     },
 
     getTokenPrice: async function (tokenId) {
