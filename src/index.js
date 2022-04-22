@@ -8,6 +8,7 @@ const config = {
 const caver = new Caver(config.rpcURL);
 
 const yttContract = new caver.klay.Contract(DEPLOYED_ABI, DEPLOYED_ADDRESS);
+const tsContract = new caver.klay.Contract(DEPLOYED_ABI_TOKENSALES, DEPLOYED_ADDRESS_TOKENSALES);
 caver.ipfs.setIPFSNode('infura-ipfs.io', 5001, true);
 
 const ipfsClient = require('ipfs-http-client');
@@ -115,6 +116,7 @@ const App = {
 
         await this.displayMyTokensAndSale(walletInstance);
         await this.displayAllTokens(walletInstance);
+        await this.checkApproval(walletInstance);
     },
 
     removeWallet: function () {
@@ -193,9 +195,7 @@ const App = {
 
     displayMyTokensAndSale: async function (walletInstance) {
         let balanceFromWallet = await this.getBalanceOf(walletInstance.address)
-        console.log(balanceFromWallet)
         let balance = parseInt(balanceFromWallet);
-        console.log(balance)
         if(balance === 0) {
             $('#myToktens').text("현재 보유한 토큰이 없습니다.");
         } else {
@@ -206,7 +206,11 @@ const App = {
                     let tokenUri = await this.getTokenUri(tokenId);
                     let ytt = await this.getYTT(tokenId);
                     let metadata = await this.getMetadata(tokenUri);
+                    let price = await this.getTokenPrice(tokenId);
                     this.renderMyTokens(tokenId, ytt, metadata, isApproved);
+                    if(parseInt(price) > 0) {
+                        this.renderMyTokensSale(tokenId, ytt, metadata, price);
+                    }
                 })();
             }
         }
@@ -247,7 +251,17 @@ const App = {
     },
 
     renderMyTokensSale: function (tokenId, ytt, metadata, price) {
+        let tokens = $('#myTokensSale');
+        let template = $('#MyTokensSaleTemplate');
+        template.find('.panel-heading').text(tokenId);
+        template.find('img').attr('src', metadata.properties.image.description);
+        template.find('img').attr('title', metadata.properties.description.description);
+        template.find('.video-id').text(metadata.properties.name.description);
+        template.find('.author').text(ytt[0]);
+        template.find('.date-created').text(ytt[1]);
+        template.find('.on-sale').text(caver.utils.fromPeb(price, 'KLAY') + " KLAY에 판매중");
 
+        tokens.append(template.html());
     },
 
     renderAllTokens: function (tokenId, ytt, metadata) {
@@ -277,15 +291,62 @@ const App = {
     },
 
     cancelApproval: async function () {
+        this.showSpinner();
+        const walletInstance = this.getWallet();
+        const receipt = await yttContract.methods.setApprovalForAll(DEPLOYED_ADDRESS_TOKENSALES, false).send({
+            from: walletInstance.address,
+            gas: "2500000",
+        });
 
+        if(receipt.transactionHash) {
+            location.reload();
+        }
     },
 
     checkApproval: async function (walletInstance) {
-
+        let isApproved = await this.isApprovedForAll(walletInstance.address, DEPLOYED_ADDRESS_TOKENSALES);
+        if(isApproved) {
+            $(`#approve`).hide();
+        } else {
+            $(`#cancelApproval`).hide();
+        }
     },
 
     sellToken: async function (button) {
+        let divInfo = $(button).closest('.panel-primary');
+        let tokenId = divInfo.find('.panel-heading').text();
+        let amount = divInfo.find('.amount').val();
 
+        if(amount <= 0)
+            return;
+
+        let spinner = this.showSpinner();
+        try {
+            const sender = this.getWallet();
+            const feePayer = caver.klay.accounts.wallet.add('0x7d770a53aee743ed13a287647fb091091f42c6a8f0657867f38bf1686e68eb71')
+
+            const {rawTransaction: senderRawTransaction} = await caver.klay.accounts.signTransaction({
+                type: 'FEE_DELEGATED_SMART_CONTRACT_EXECUTION',
+                from: sender.address,
+                to: DEPLOYED_ADDRESS_TOKENSALES,
+                data: tsContract.methods.setForSale(tokenId, caver.utils.toPeb(amount, 'KLAY')).encodeABI(),
+                gas: '500000',
+                value: caver.utils.toPeb('0', 'KLAY'),
+            }, sender.privateKey)
+
+            caver.klay.sendTransaction({
+                senderRawTransaction: senderRawTransaction,
+                feePayer: feePayer.address,
+            }).then(function (receipt) {
+                if(receipt.transactionHash) {
+                    alert(receipt.transactionHash);
+                    location.reload();
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            spinner.stop();
+        }
     },
 
     buyToken: async function (button) {
@@ -358,7 +419,7 @@ const App = {
     },
 
     getTokenPrice: async function (tokenId) {
-
+        return await tsContract.methods.tokenPrice(tokenId).call();
     },
 
     getOwnerOf: async function (tokenId) {
