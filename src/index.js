@@ -218,7 +218,6 @@ const App = {
 
     displayAllTokens: async function (walletInstance) {
         let totalSupply = parseInt(await this.getTotalSupply());
-        console.log(walletInstance)
         if(totalSupply === 0 ) {
             $('#allTokens').text("현재 발행된 토큰이 없습니다.");
         } else {
@@ -228,7 +227,9 @@ const App = {
                     let tokenUri = await this.getTokenUri(tokenId);
                     let ytt = await this.getYTT(tokenId);
                     let metadata = await this.getMetadata(tokenUri);
-                    this.renderAllTokens(tokenId, ytt, metadata);
+                    let price = await this.getTokenPrice(tokenId);
+                    let owner = await this.getOwnerOf(tokenId);
+                    this.renderAllTokens(tokenId, ytt, metadata, price, owner, walletInstance);
                 })();
             }
         }
@@ -237,12 +238,8 @@ const App = {
     renderMyTokens: function (tokenId, ytt, metadata, isApproved) {
         let tokens = $('#myTokens');
         let template = $('#MyTokensTemplate');
-        template.find('.panel-heading').text(tokenId);
-        template.find('img').attr('src', metadata.properties.image.description);
-        template.find('img').attr('title', metadata.properties.description.description);
-        template.find('.video-id').text(metadata.properties.name.description);
-        template.find('.author').text(ytt[0]);
-        template.find('.date-created').text(ytt[1]);
+
+        this.getBasicTemplate(template, tokenId, ytt, metadata);
 
         if(isApproved) {
             template.find('.sell-token').show()
@@ -264,7 +261,7 @@ const App = {
         tokens.append(template.html());
     },
 
-    renderAllTokens: function (tokenId, ytt, metadata) {
+    renderAllTokens: function (tokenId, ytt, metadata, price, owner, walletInstance) {
         var tokens = $('#allTokens');
         var template = $('#AllTokensTemplate');
         template.find('.panel-heading').text(tokenId);
@@ -273,6 +270,18 @@ const App = {
         template.find('.video-id').text(metadata.properties.name.description);
         template.find('.author').text(ytt[0]);
         template.find('.date-created').text(ytt[1]);
+
+        if(parseInt(price) > 0) {
+            template.find('.buy-token').show();
+            template.find('.token-price').text(caver.utils.fromPeb(price, 'KLAY') + " KLAY");
+            if(owner.toUpperCase() === walletInstance.address.toUpperCase()) {
+                template.find('.btn-buy').attr('disabled', true);
+            } else {
+                template.find('.btn-buy').attr('disabled', false);
+            }
+        } else {
+            template.find('.buy-token').hide();
+        }
 
         tokens.append(template.html());
     },
@@ -350,7 +359,40 @@ const App = {
     },
 
     buyToken: async function (button) {
+        let divInfo = $(button).closest('.panel-primary');
+        let tokenId = divInfo.find('.panel-heading').text();
+        let price = await this.getTokenPrice(tokenId);
 
+        if(price <= 0)
+            return;
+
+        let spinner = this.showSpinner();
+        try {
+            const sender = this.getWallet();
+            const feePayer = caver.klay.accounts.wallet.add('0x7d770a53aee743ed13a287647fb091091f42c6a8f0657867f38bf1686e68eb71')
+
+            const {rawTransaction: senderRawTransaction} = await caver.klay.accounts.signTransaction({
+                type: 'FEE_DELEGATED_SMART_CONTRACT_EXECUTION',
+                from: sender.address,
+                to: DEPLOYED_ADDRESS_TOKENSALES,
+                data: tsContract.methods.purchaseToken(tokenId).encodeABI(),
+                gas: '500000',
+                value: price,
+            }, sender.privateKey)
+
+            caver.klay.sendTransaction({
+                senderRawTransaction: senderRawTransaction,
+                feePayer: feePayer.address,
+            }).then(function (receipt) {
+                if(receipt.transactionHash) {
+                    alert(receipt.transactionHash);
+                    location.reload();
+                }
+            });
+        } catch (err) {
+            console.error(err);
+            spinner.stop();
+        }
     },
 
     onCancelApprovalSuccess: async function (walletInstance) {
@@ -423,11 +465,16 @@ const App = {
     },
 
     getOwnerOf: async function (tokenId) {
-
+        return await yttContract.methods.ownerOf(tokenId).call();
     },
 
     getBasicTemplate: function (template, tokenId, ytt, metadata) {
-
+        template.find('.panel-heading').text(tokenId);
+        template.find('img').attr('src', metadata.properties.image.description);
+        template.find('img').attr('title', metadata.properties.description.description);
+        template.find('.video-id').text(metadata.properties.name.description);
+        template.find('.author').text(ytt[0]);
+        template.find('.date-created').text(ytt[1]);
     }
 };
 
