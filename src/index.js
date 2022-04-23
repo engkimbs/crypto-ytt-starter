@@ -1,6 +1,5 @@
 import Caver from "caver-js";
 import {Spinner} from 'spin.js';
-import {to} from "truffle/build/765.bundled";
 
 const config = {
     rpcURL: 'https://api.baobab.klaytn.net:8651'
@@ -50,7 +49,6 @@ const App = {
                 document.querySelector('#input-password').focus();
             } catch (event) {
                 $('#message').text('유효하지 않은 keystore 파일입니다.');
-                return;
             }
         }
     },
@@ -262,8 +260,8 @@ const App = {
     },
 
     renderAllTokens: function (tokenId, ytt, metadata, price, owner, walletInstance) {
-        var tokens = $('#allTokens');
-        var template = $('#AllTokensTemplate');
+        let tokens = $('#allTokens');
+        let template = $('#AllTokensTemplate');
         template.find('.panel-heading').text(tokenId);
         template.find('img').attr('src', metadata.properties.image.description);
         template.find('img').attr('title', metadata.properties.description.description);
